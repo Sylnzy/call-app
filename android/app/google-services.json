@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "734730205752",
+    "project_id": "call-app-85413",
+    "storage_bucket": "call-app-85413.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:734730205752:android:bae27f6ff4ce41ebbb04cd",
+        "android_client_info": {
+          "package_name": "com.example.call_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6XlouNGgAs-1nt0nCYqzgiCbpE3_1q_4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
