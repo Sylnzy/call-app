@@ -3,35 +3,33 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../models/user_model.dart';
 import '../controllers/user_controller.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
 
-class VideoCallPage extends StatefulWidget {
+class VoiceCallPage extends StatefulWidget {
   final UserModel contact;
   final String? roomName;
   final bool isIncoming;
-  final String? callerId; // Tambahkan parameter callerId untuk panggilan masuk
+  final String? callerId;
   
-  const VideoCallPage({
+  const VoiceCallPage({
     Key? key,
     required this.contact,
     this.roomName,
     this.isIncoming = false,
-    this.callerId, // Tambahkan parameter callerId
+    this.callerId,
   }) : super(key: key);
 
   @override
-  State<VideoCallPage> createState() => _VideoCallPageState();
+  State<VoiceCallPage> createState() => _VoiceCallPageState();
 }
 
-class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserver {
+class _VoiceCallPageState extends State<VoiceCallPage> with WidgetsBindingObserver {
   final JitsiMeet _jitsiMeet = JitsiMeet();
   bool _isCallActive = false;
   bool _isMuted = false;
-  bool _isVideoMuted = false;
   DateTime? _startTime;
   String _callDuration = '00:00';
   String? _callId;
@@ -63,7 +61,7 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _callStatusSubscription?.cancel();
-    // Pastikan panggilan ditutup jika halaman di-dispose
+    // Ensure call is ended if page is disposed
     if (_isCallActive) {
       try {
         _jitsiMeet.hangUp();
@@ -97,14 +95,14 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
     
     try {
       // Create a unique room name
-      _roomName = 'vcall_${currentUser.uid}_${widget.contact.uid}_${DateTime.now().millisecondsSinceEpoch}';
+      _roomName = 'acall_${currentUser.uid}_${widget.contact.uid}_${DateTime.now().millisecondsSinceEpoch}';
       
       // Store call info in Firestore
       _callId = await _saveCallToFirestore(
         currentUser, 
         widget.contact.uid, 
         _roomName!, 
-        true, // this is a video call
+        false, // this is a voice call, not a video call
       );
       
       // Send notification to the receiver
@@ -112,16 +110,16 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
         caller: currentUser,
         receiverUid: widget.contact.uid,
         roomName: _roomName!,
-        isVideoCall: true,
+        isVideoCall: false,
       );
       
       // Listen for call status changes
       _listenForCallStatus(_roomName!);
       
     } catch (e) {
-      print("Error initiating video call: $e");
+      print("Error initiating voice call: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to initiate video call: ${e.toString()}')),
+        SnackBar(content: Text('Failed to initiate voice call: ${e.toString()}')),
       );
       Navigator.pop(context);
     }
@@ -185,45 +183,14 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
     }
     
     try {
-      // Request camera and microphone permissions before starting the call
-      Map<Permission, PermissionStatus> statuses = await [
-        Permission.camera,
-        Permission.microphone,
-      ].request();
-      
-      if (statuses[Permission.camera] != PermissionStatus.granted ||
-          statuses[Permission.microphone] != PermissionStatus.granted) {
-        // Show alert if permissions denied
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Camera and microphone permissions are required for video calls'),
-              action: SnackBarAction(
-                label: 'Settings',
-                onPressed: () => openAppSettings(),
-              ),
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-        // Continue anyway, but user won't be able to use camera/mic
-        print("Permissions not granted: ${statuses[Permission.camera]}, ${statuses[Permission.microphone]}");
-      }
-      
       // Configure Jitsi options
       final options = JitsiMeetConferenceOptions(
         serverURL: "https://meet.anharphelia.online",
         room: _roomName!,
         configOverrides: {
           "startWithAudioMuted": false,
-          "startWithVideoMuted": false,
+          "startWithVideoMuted": true, // Always start with video muted for voice calls
           "prejoinPageEnabled": false,
-          "disableDeepLinking": true,
-          "disableFocusIndicator": true,
-          "disableInviteFunctions": true,
-          "requireDisplayName": false,
-          "enableClosePage": true, // Enable a proper close page to help prevent black screen
-          "callIntegrationEnabled": false,
         },
         featureFlags: {
           "add-people.enabled": false,
@@ -235,9 +202,7 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
           "video-share.enabled": false,
           "chat.enabled": false,
           "tile-view.enabled": true,
-          "pip.enabled": false, // Disable Picture-in-Picture to prevent black screen issues
-          "toolbox.enabled": true,
-          "filmstrip.enabled": true,
+          "pip.enabled": false, // Disable Picture-in-Picture to prevent black screen
         },
         userInfo: JitsiMeetUserInfo(
           displayName: currentUser.username,
@@ -258,6 +223,9 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
           
           // Start timer to update call duration
           _startDurationTimer();
+          
+          // For voice calls, automatically mute video
+          _jitsiMeet.setVideoMuted(true);
         },
         conferenceTerminated: (url, error) {
           print("Conference terminated: $url, error: $error");
@@ -281,8 +249,8 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
             _isCallEnded = true;
           });
           
-          // Fix for black screen: Use a shorter delay to pop the screen faster
-          Future.delayed(const Duration(milliseconds: 300), () {
+          // Force pop the screen after a small delay
+          Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               Navigator.pop(context);
             }
@@ -294,19 +262,11 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
             _isMuted = muted;
           });
         },
-        videoMutedChanged: (muted) {
-          print("Video muted: $muted");
-          setState(() {
-            _isVideoMuted = muted;
-          });
-        },
         participantLeft: (participantId) {
           print("Participant left: $participantId");
           // If participant left and the screen is still showing, close it
           if (mounted) {
-            // Call will automatically end when the other participant leaves
-            // Use shorter delay to avoid keeping black screen too long
-            Future.delayed(const Duration(milliseconds: 300), () {
+            Future.delayed(const Duration(milliseconds: 1000), () {
               if (mounted && _isCallActive) {
                 _endCall();
               }
@@ -319,9 +279,9 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
       await _jitsiMeet.join(options, listener);
       
     } catch (e) {
-      print("Error joining video call: $e");
+      print("Error joining voice call: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start video call: ${e.toString()}')),
+        SnackBar(content: Text('Failed to start voice call: ${e.toString()}')),
       );
       Navigator.pop(context);
     }
@@ -445,34 +405,6 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
     }
   }
   
-  void _toggleVideo() async {
-    try {
-      await _jitsiMeet.setVideoMuted(!_isVideoMuted);
-    } catch (e) {
-      print('Error toggling video: $e');
-    }
-  }
-  
-  void _switchCamera() async {
-    try {
-      // Metode toggleCamera() tidak tersedia di SDK Jitsi
-      // Gunakan pendekatan alternatif
-      
-      // Fallback karena metode langsung tidak tersedia
-      try {
-        // Temporarily disable the video
-        await _jitsiMeet.setVideoMuted(true);
-        // Re-enable it to trigger camera switch (workaround)
-        await Future.delayed(Duration(milliseconds: 300));
-        await _jitsiMeet.setVideoMuted(false);
-      } catch (fallbackError) {
-        print('Error in camera switch fallback: $fallbackError');
-      }
-    } catch (e) {
-      print('Error switching camera: $e');
-    }
-  }
-  
   void _endCall() async {
     if (_isCallActive) {
       try {
@@ -488,17 +420,10 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
           await NotificationService().endCall(targetUid, _roomName!);
         }
         
-        // Update call duration if the call was active
-        if (_callId != null && _startTime != null) {
-          final duration = DateTime.now().difference(_startTime!).inSeconds;
-          _updateCallDuration(_callId!, duration);
-        }
-        
-        // Hang up the call
         await _jitsiMeet.hangUp();
         
-        // Use a shorter delay to mitigate black screen issue
-        Future.delayed(Duration(milliseconds: 250), () {
+        // Add delay before popping screen to avoid black screen
+        Future.delayed(Duration(milliseconds: 500), () {
           if (mounted) {
             Navigator.pop(context);
           }
@@ -538,93 +463,67 @@ class _VideoCallPageState extends State<VideoCallPage> with WidgetsBindingObserv
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Video call is handled by Jitsi, but here's a placeholder UI
-              // when the call isn't active yet or for any UI overlays
-              if (!_isCallActive) 
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey[800],
-                          backgroundImage: widget.contact.photoURL != null
-                              ? NetworkImage(widget.contact.photoURL!)
-                              : null,
-                          child: widget.contact.photoURL == null
-                              ? Text(
-                                  widget.contact.username[0].toUpperCase(),
-                                  style: TextStyle(fontSize: 48, color: Colors.white),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          widget.contact.username,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _isCallEnded ? 'Call ended' : _callStatus,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        if (!_isCallEnded && _isWaitingForAnswer)
-                          const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      _callDuration,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white70,
+              // Voice call UI
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 70,
+                        backgroundColor: Colors.grey[800],
+                        backgroundImage: widget.contact.photoURL != null
+                            ? NetworkImage(widget.contact.photoURL!)
+                            : null,
+                        child: widget.contact.photoURL == null
+                            ? Text(
+                                widget.contact.username[0].toUpperCase(),
+                                style: TextStyle(fontSize: 60, color: Colors.white),
+                              )
+                            : null,
                       ),
-                    ),
+                      const SizedBox(height: 24),
+                      Text(
+                        widget.contact.username,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isCallActive ? _callDuration : (_isCallEnded ? 'Call ended' : _callStatus),
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      if (!_isCallEnded && _isWaitingForAnswer)
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                    ],
                   ),
                 ),
+              ),
               
               // Call controls
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 24.0),
+                padding: const EdgeInsets.symmetric(vertical: 32.0),
                 color: Colors.black54,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    if (_isCallActive) ...[
+                    if (_isCallActive) 
                       CallButton(
                         icon: _isMuted ? Icons.mic_off : Icons.mic,
                         backgroundColor: _isMuted ? Colors.red : Colors.grey[800]!,
                         onPressed: _toggleMute,
                         label: _isMuted ? 'Unmute' : 'Mute',
                       ),
-                      CallButton(
-                        icon: _isVideoMuted ? Icons.videocam_off : Icons.videocam,
-                        backgroundColor: _isVideoMuted ? Colors.red : Colors.grey[800]!,
-                        onPressed: _toggleVideo,
-                        label: _isVideoMuted ? 'Start Video' : 'Stop Video',
-                      ),
-                      CallButton(
-                        icon: Icons.switch_camera,
-                        backgroundColor: Colors.grey[800]!,
-                        onPressed: _switchCamera,
-                        label: 'Switch',
-                      ),
-                    ],
+                    // Speaker button could be added here if needed
                     CallButton(
                       icon: Icons.call_end,
                       backgroundColor: Colors.red,
@@ -662,21 +561,21 @@ class CallButton extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 60,
-          height: 60,
+          width: 64,
+          height: 64,
           decoration: BoxDecoration(
             color: backgroundColor,
             shape: BoxShape.circle,
           ),
           child: IconButton(
-            icon: Icon(icon, color: Colors.white, size: 28),
+            icon: Icon(icon, color: Colors.white, size: 32),
             onPressed: onPressed,
           ),
         ),
         SizedBox(height: 8),
         Text(
           label,
-          style: TextStyle(color: Colors.white70, fontSize: 12),
+          style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
       ],
     );

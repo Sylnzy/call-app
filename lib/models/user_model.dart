@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
   final String uid;
-  final String name;
-  final String phone;
+  final String username;
+  final String email;
   final String? photoURL;
   final String status;
   final DateTime lastSeen;
@@ -11,8 +11,8 @@ class UserModel {
 
   UserModel({
     required this.uid,
-    required this.name,
-    required this.phone,
+    required this.username,
+    required this.email,
     this.photoURL,
     required this.status,
     required this.lastSeen,
@@ -22,26 +22,24 @@ class UserModel {
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       uid: map['uid'] ?? '',
-      name: map['name'] ?? '',
-      phone: map['phone'] ?? '',
+      username: map['username'] ?? '',
+      email: map['email'] ?? '',
       photoURL: map['photoURL'],
       status: map['status'] ?? 'Hey there, I\'m using Call App!',
-      lastSeen:
-          map['lastSeen'] is Timestamp
-              ? (map['lastSeen'] as Timestamp).toDate()
-              : DateTime.now(),
-      createdAt:
-          map['createdAt'] is Timestamp
-              ? (map['createdAt'] as Timestamp).toDate()
-              : DateTime.now(),
+      lastSeen: map['lastSeen'] != null
+          ? (map['lastSeen'] as Timestamp).toDate()
+          : DateTime.now(),
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
-      'name': name,
-      'phone': phone,
+      'username': username,
+      'email': email,
       'photoURL': photoURL,
       'status': status,
       'lastSeen': lastSeen,
@@ -49,23 +47,22 @@ class UserModel {
     };
   }
 
+  // Create a copy of the user with updated fields
   UserModel copyWith({
-    String? uid,
-    String? name,
-    String? phone,
+    String? username,
+    String? email,
     String? photoURL,
     String? status,
     DateTime? lastSeen,
-    DateTime? createdAt,
   }) {
     return UserModel(
-      uid: uid ?? this.uid,
-      name: name ?? this.name,
-      phone: phone ?? this.phone,
+      uid: this.uid,
+      username: username ?? this.username,
+      email: email ?? this.email,
       photoURL: photoURL ?? this.photoURL,
       status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
-      createdAt: createdAt ?? this.createdAt,
+      createdAt: this.createdAt,
     );
   }
 }

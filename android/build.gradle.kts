@@ -3,6 +3,16 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    // Add configuration to handle duplicate Play Core classes
+    configurations.all {
+        resolutionStrategy {
+            // Force a specific version to resolve conflicts
+            force("com.google.android.play:core:1.10.3")
+            // Exclude the conflicting core-common module
+            exclude(group = "com.google.android.play", module = "core-common")
+        }
+    }
 }
 
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()

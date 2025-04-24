@@ -13,7 +13,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -21,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -37,18 +37,13 @@ class _LoginPageState extends State<LoginPage> {
     final userController = Provider.of<UserController>(context, listen: false);
 
     try {
-      // Sanitasi dan format nomor telepon
-      String phone = _phoneController.text
-          .trim()
-          .replaceAll(' ', '')
-          .replaceAll('-', '');
+      String email = _emailController.text.trim();
+      
+      // Print debug for checking email format
+      print("Attempting to login with email: $email");
 
-      // Print debug untuk memeriksa format nomor yang digunakan
-      print("Attempting to login with phone: $phone");
-
-      // Coba login langsung tanpa pengecekan user exists
       final success = await userController.login(
-        phone,
+        email,
         _passwordController.text,
       );
 
@@ -56,7 +51,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       } else if (mounted) {
         setState(() {
-          _errorMessage = 'Invalid phone number or password';
+          _errorMessage = 'Invalid email or password';
         });
       }
     } catch (e) {
@@ -67,7 +62,11 @@ class _LoginPageState extends State<LoginPage> {
         if (e.toString().contains('invalid-credential') ||
             e.toString().contains('wrong-password') ||
             e.toString().contains('user-not-found')) {
-          _errorMessage = 'Invalid phone number or password';
+          _errorMessage = 'Invalid email or password';
+        } else if (e.toString().contains('too-many-requests')) {
+          _errorMessage = 'Too many login attempts. Try again later.';
+        } else if (e.toString().contains('invalid-email')) {
+          _errorMessage = 'Please enter a valid email address';
         } else {
           _errorMessage = 'Login failed: ${e.toString()}';
         }
@@ -95,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 32),
                 Icon(
-                  Icons.phone_android,
+                  Icons.chat,
                   size: 80,
                   color: Theme.of(context).colorScheme.primary,
                 ),
@@ -125,17 +124,17 @@ class _LoginPageState extends State<LoginPage> {
                 ],
                 const SizedBox(height: 32),
                 TextFormField(
-                  controller: _phoneController,
+                  controller: _emailController,
                   decoration: InputDecoration(
-                    labelText: 'Phone Number',
+                    labelText: 'Email',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                    hintText: 'e.g., 08997995528',
+                    prefixIcon: Icon(Icons.email),
+                    hintText: 'example@email.com',
                   ),
-                  keyboardType: TextInputType.phone,
+                  keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your phone number';
+                      return 'Please enter your email';
                     }
                     return null;
                   },
@@ -200,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showForgotPasswordDialog() {
-    final resetPhoneController = TextEditingController();
+    final resetEmailController = TextEditingController();
     bool isLoading = false;
     String? resetError;
 
@@ -215,17 +214,17 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Enter your phone number to receive a password reset link',
+                      'Enter your email to receive a password reset link',
                     ),
                     SizedBox(height: 16),
                     TextField(
-                      controller: resetPhoneController,
+                      controller: resetEmailController,
                       decoration: InputDecoration(
-                        labelText: 'Phone Number',
+                        labelText: 'Email',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
+                        prefixIcon: Icon(Icons.email),
                       ),
-                      keyboardType: TextInputType.phone,
+                      keyboardType: TextInputType.emailAddress,
                     ),
                     if (resetError != null) ...[
                       SizedBox(height: 16),
@@ -251,7 +250,7 @@ class _LoginPageState extends State<LoginPage> {
                               try {
                                 final authService = AuthService();
                                 await authService.resetPassword(
-                                  resetPhoneController.text.trim(),
+                                  resetEmailController.text.trim(),
                                 );
 
                                 // Close dialog and show success message

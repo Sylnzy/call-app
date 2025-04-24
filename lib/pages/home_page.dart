@@ -1,117 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../controllers/theme_controller.dart';
 import '../controllers/user_controller.dart';
-import '../utils/helpers.dart';
-import '../config/routes.dart';
+import '../widgets/app_navbar.dart';
+import '../models/user_model.dart';
 
-class HomePage extends StatelessWidget {
+// Import chat, call history, and profile pages
+import 'chat_list_page.dart';
+import 'call_history_page.dart';
+import 'profile_page.dart';
+
+class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final themeController = Provider.of<ThemeController>(context);
-    final userController = Provider.of<UserController>(context);
+  State<HomePage> createState() => _HomePageState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Call App'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.settings),
-          ),
-        ],
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.phone_android,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                userController.currentUser != null
-                    ? 'Hello, ${userController.currentUser!.name}!'
-                    : 'Welcome to Call App',
-                style: Helpers.getTextStyle(
-                  context,
-                  isBold: true,
-                  customSize: themeController.fontSize + 8,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Make calls, video calls and chat with your friends',
-                style: Helpers.getTextStyle(context),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              _buildFeatureButton(
-                context,
-                'Make a Call',
-                Icons.call,
-                () => Navigator.pushNamed(context, AppRoutes.call),
-              ),
-              const SizedBox(height: 16),
-              _buildFeatureButton(
-                context,
-                'Video Call',
-                Icons.videocam,
-                () => Navigator.pushNamed(context, AppRoutes.videoCall),
-              ),
-              const SizedBox(height: 16),
-              _buildFeatureButton(
-                context,
-                'Chat',
-                Icons.chat,
-                () => Navigator.pushNamed(context, AppRoutes.chat),
-              ),
-              const SizedBox(height: 24),
-              // Hapus tombol login karena user sudah login
-              // Dan tambahkan tombol logout sebagai gantinya
-              TextButton.icon(
-                onPressed: () async {
-                  await userController.logout();
-                  Navigator.pushReplacementNamed(context, AppRoutes.login);
-                },
-                icon: Icon(Icons.logout),
-                label: Text(
-                  'Sign out',
-                  style: TextStyle(fontSize: themeController.fontSize),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+class _HomePageState extends State<HomePage> {
+  int _currentIndex = 0;
+  
+  // List of pages to display
+  late final List<Widget> _pages;
+  
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const ChatListPage(),
+      const CallHistoryPage(),
+      const ProfilePage(),
+    ];
   }
 
-  Widget _buildFeatureButton(
-    BuildContext context,
-    String text,
-    IconData icon,
-    VoidCallback onPressed,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0),
-          child: Text(text),
+  @override
+  Widget build(BuildContext context) {
+    final userController = Provider.of<UserController>(context);
+    
+    if (userController.isLoading) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
         ),
-        style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      );
+    }
+    
+    if (!userController.isLoggedIn) {
+      // This should not happen as the route should be protected
+      // But just in case, redirect to login
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return const Scaffold(
+        body: Center(
+          child: Text('Redirecting to login...'),
         ),
+      );
+    }
+    
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: AppNavBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
       ),
     );
   }

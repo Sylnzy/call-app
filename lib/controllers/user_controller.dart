@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
@@ -10,9 +11,6 @@ class UserController extends ChangeNotifier {
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
-
-  // Ubah isLoggedIn untuk menggunakan currentUser dari class ini
-  // agar konsisten dengan nilai yang digunakan di UI
   bool get isLoggedIn => _currentUser != null;
 
   UserController() {
@@ -25,7 +23,7 @@ class UserController extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // Langsung cek status auth saat ini
+      // Check current auth status
       User? user = _authService.currentUser;
       if (user != null) {
         print("User already logged in: ${user.uid}");
@@ -36,7 +34,7 @@ class UserController extends ChangeNotifier {
         notifyListeners();
       }
 
-      // Setup listener untuk perubahan status auth
+      // Setup listener for auth state changes
       _authService.authStateChanges.listen((User? user) async {
         print(
           "Auth state changed: ${user != null ? 'Logged in' : 'Logged out'}",
@@ -62,7 +60,7 @@ class UserController extends ChangeNotifier {
       notifyListeners();
 
       _currentUser = await _authService.getUserDetails();
-      print("User data refreshed: ${_currentUser?.name ?? 'Unknown'}");
+      print("User data refreshed: ${_currentUser?.username ?? 'Unknown'}");
     } catch (e) {
       print("Error refreshing user data: $e");
     } finally {
@@ -71,13 +69,23 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String name, String phone, String password) async {
+  Future<bool> register({
+    required String username,
+    required String email,
+    required String password,
+    File? profileImage,
+  }) async {
     try {
-      print("Attempting to register user: $name, $phone");
+      print("Attempting to register user: $username, $email");
       _isLoading = true;
       notifyListeners();
 
-      await _authService.registerWithPhone(phone, password, name);
+      await _authService.registerWithEmail(
+        username: username,
+        email: email,
+        password: password,
+        profileImage: profileImage,
+      );
       await refreshUserData();
 
       return true;
@@ -89,13 +97,13 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String phone, String password) async {
+  Future<bool> login(String email, String password) async {
     try {
-      print("Attempting to login: $phone");
+      print("Attempting to login: $email");
       _isLoading = true;
       notifyListeners();
 
-      await _authService.loginWithPhone(phone, password);
+      await _authService.loginWithEmail(email, password);
       await refreshUserData();
 
       return true;
@@ -124,23 +132,84 @@ class UserController extends ChangeNotifier {
   }
 
   Future<void> updateProfile({
-    String? name,
+    String? username,
     String? photoURL,
     String? status,
+    String? password,
   }) async {
     try {
       _isLoading = true;
       notifyListeners();
 
       await _authService.updateUserDetails(
-        name: name,
+        username: username,
         photoURL: photoURL,
         status: status,
+        password: password,
       );
 
       await refreshUserData();
     } catch (e) {
       print('Update profile error: $e');
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<UserModel?> findUserByUsernameOrEmail(String query) async {
+    try {
+      return await _authService.findUserByUsernameOrEmail(query);
+    } catch (e) {
+      print('Error finding user: $e');
+      return null;
+    }
+  }
+
+  Future<bool> addContact(String contactUid) async {
+    try {
+      return await _authService.addContact(contactUid);
+    } catch (e) {
+      print('Error adding contact: $e');
+      return false;
+    }
+  }
+
+  Future<List<UserModel>> getContacts() async {
+    try {
+      return await _authService.getContacts();
+    } catch (e) {
+      print('Error getting contacts: $e');
+      return [];
+    }
+  }
+
+  // Upload profile image and update URL in profile
+  Future<String?> uploadProfileImage(File imageFile) async {
+    try {
+      if (currentUser == null) {
+        return null;
+      }
+
+      _isLoading = true;
+      notifyListeners();
+
+      // Upload image to storage
+      final photoURL = await _authService.uploadProfileImage(
+        currentUser!.uid,
+        imageFile,
+      );
+
+      // Update user profile with new photo URL
+      await _authService.updateProfilePhoto(currentUser!.uid, photoURL);
+
+      // Refresh user data to reflect changes
+      await refreshUserData();
+
+      return photoURL;
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      return null;
+    } finally {
       _isLoading = false;
       notifyListeners();
     }
